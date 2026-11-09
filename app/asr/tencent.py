@@ -23,6 +23,7 @@ import contextlib
 import hashlib
 import hmac
 import json
+import logging
 import random
 import time
 import uuid
@@ -36,6 +37,8 @@ except ImportError:  # pragma: no cover - 旧版本回退
 from ..config import Settings
 from ..transcript import TranscriptTracker, extract_sentence_items
 from .base import AsrEvent, EmitFn, ProviderStreamError
+
+log = logging.getLogger("familyasr.tencent")
 
 WS_HOST = "asr.cloud.tencent.com"
 WS_PATH_PREFIX = "/asr/v2/"
@@ -190,6 +193,7 @@ class TencentAsrProvider:
             up_q.put_nowait(("closed", None))
 
         async def handler() -> None:
+            handshake_done = False
             while True:
                 kind, data = await up_q.get()
                 if kind == "closed":
@@ -202,11 +206,18 @@ class TencentAsrProvider:
                     continue   # 无法解析的帧容错忽略，不卡死
                 code = msg.get("code", 0)
                 if code != 0:
+                    log.warning("tencent error code=%s message=%s",
+                                code, str(msg.get("message", ""))[:200])
                     hint, transient, app_code = classify_error(
                         int(code), str(msg.get("message", "")))
                     if transient:
                         raise _TransientUpstreamError(hint)
                     raise ProviderStreamError(app_code, hint)
+                if not handshake_done:
+                    # 首条 code=0 消息即握手确认；此后才宣布“正在聆听”（FR-01）
+                    handshake_done = True
+                    await emit(AsrEvent(kind="status", state="listening",
+                                        session_id=session_id, detail="正在聆听"))
                 if msg.get("final") == 1:
                     final_evt.set()
                     return
@@ -226,8 +237,6 @@ class TencentAsrProvider:
         rt = asyncio.create_task(reader())
         ht = asyncio.create_task(handler())
         try:
-            await emit(AsrEvent(kind="status", state="listening",
-                                session_id=session_id, detail="正在聆听"))
             while True:
                 get_audio = asyncio.create_task(audio_q.get())
                 await asyncio.wait({get_audio, ht}, return_when=asyncio.FIRST_COMPLETED)

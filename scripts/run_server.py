@@ -23,10 +23,33 @@ from app.config import Settings  # noqa: E402
 from app.main import create_app  # noqa: E402
 
 
+class _RedactQueryFilter(logging.Filter):
+    """uvicorn 访问/WebSocket 日志会记录完整 URL（含 ?token=...）——统一抹掉查询串。"""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            if isinstance(record.args, tuple):
+                args = []
+                changed = False
+                for a in record.args:
+                    if isinstance(a, str) and "?" in a and "/" in a:
+                        args.append(a.split("?", 1)[0] + "?<redacted>")
+                        changed = True
+                    else:
+                        args.append(a)
+                if changed:
+                    record.args = tuple(args)
+        except Exception:  # noqa: BLE001
+            pass
+        return True
+
+
 def main() -> int:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    for name in ("uvicorn.access", "uvicorn.websockets", "uvicorn.error"):
+        logging.getLogger(name).addFilter(_RedactQueryFilter())
     settings = Settings.from_env()
     problems = settings.validate()
     if problems:
