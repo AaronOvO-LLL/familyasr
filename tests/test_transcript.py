@@ -64,3 +64,26 @@ def test_extract_sentence_items_shapes():
     assert extract_sentence_items({"sentences": [{"text": "a", "sentence_id": 3}]})[0][
         "text"] == "a"
     assert extract_sentence_items({}) == []
+
+
+def test_extract_real_tencent_v2_shape():
+    """实测形状（2026-11-09 抓包）：result + slice_type/index/voice_text_str。"""
+    interim = {"code": 0, "message": "success", "voice_id": "v",
+               "result": {"slice_type": 1, "index": 0, "start_time": 0,
+                          "end_time": 880, "voice_text_str": "今天",
+                          "word_size": 0, "word_list": [],
+                          "emotion_type": None, "speaker_info": None,
+                          "engine_version": 1}}
+    final = {"code": 0, "result": {"slice_type": 2, "index": 0,
+                                   "start_time": 0, "end_time": 5300,
+                                   "voice_text_str": "今天天气不错。",
+                                   "speaker_info": {"speaker_id": 3}}}
+    it = extract_sentence_items(interim)[0]
+    assert it["sentence_id"] == 0 and it["text"] == "今天"
+    assert it["sentence_type"] == 0 and it["speaker_id"] == -1
+    it = extract_sentence_items(final)[0]
+    assert it["sentence_type"] == 1                      # slice_type=2 → 定稿
+    assert it["speaker_id"] == 3                         # speaker_info 映射
+    # 握手/整流结束消息无 result → 空
+    assert extract_sentence_items({"code": 0, "voice_id": "v"}) == []
+    assert extract_sentence_items({"code": 0, "final": 1}) == []

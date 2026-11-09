@@ -11,7 +11,39 @@ from __future__ import annotations
 
 
 def extract_sentence_items(message: dict) -> list[dict]:
-    """从一条服务端消息里取出句子列表；兼容 dict(sentence_list) / list / 缺省。"""
+    """从一条服务端消息里取出句子列表。
+
+    真实腾讯云实时 V2 返回（2026-11-09 实测抓包，与官方文档示例不一致）：
+      {"code":0, ..., "result": {"slice_type": 0|1|2, "index": N,
+       "start_time": ms, "end_time": ms, "voice_text_str": "...", ...}}
+      slice_type：0=句首块，1=修订中，2=定稿；index=句子序号（从 0 自增）。
+    同时兼容文档旧形状：sentences 为 {"sentence_list": [...]} 或 [...]。
+    """
+    out: list[dict] = []
+
+    def _item(sid, text, final, speaker, start, end) -> dict:
+        return {"sentence_id": sid, "sentence_type": 1 if final else 0,
+                "speaker_id": speaker, "text": text,
+                "start_time": start, "end_time": end}
+
+    # —— 实测形状：result 对象 ——
+    res = message.get("result")
+    if isinstance(res, dict) and ("voice_text_str" in res or "slice_type" in res):
+        speaker = -1
+        si = res.get("speaker_info")
+        if isinstance(si, dict):
+            cand = si.get("speaker_id", si.get("id", -1))
+            speaker = cand if isinstance(cand, int) else -1
+        out.append(_item(
+            sid=res.get("index", -1),
+            text=res.get("voice_text_str", "") or "",
+            final=res.get("slice_type") == 2,
+            speaker=speaker,
+            start=res.get("start_time"),
+            end=res.get("end_time")))
+        return out
+
+    # —— 文档旧形状：sentences ——
     sentences = message.get("sentences")
     if isinstance(sentences, dict):
         items = sentences.get("sentence_list", [])
@@ -19,19 +51,17 @@ def extract_sentence_items(message: dict) -> list[dict]:
         items = sentences
     else:
         items = []
-    out = []
     for s in items:
         if not isinstance(s, dict):
             continue
-        out.append({
-            "sentence_id": s.get("sentence_id", -1),
-            "sentence_type": s.get("sentence_type", 0),
-            "speaker_id": s.get("speaker_id", -1),
-            "text": (s.get("sentence") if s.get("sentence") is not None
-                     else s.get("text", "")) or "",
-            "start_time": s.get("start_time"),
-            "end_time": s.get("end_time"),
-        })
+        out.append(_item(
+            sid=s.get("sentence_id", -1),
+            text=(s.get("sentence") if s.get("sentence") is not None
+                  else s.get("text", "")) or "",
+            final=s.get("sentence_type", 0) == 1,
+            speaker=s.get("speaker_id", -1),
+            start=s.get("start_time"),
+            end=s.get("end_time")))
     return out
 
 

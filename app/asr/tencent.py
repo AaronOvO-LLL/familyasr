@@ -236,6 +236,7 @@ class TencentAsrProvider:
 
         rt = asyncio.create_task(reader())
         ht = asyncio.create_task(handler())
+        get_audio: asyncio.Task | None = None
         try:
             while True:
                 get_audio = asyncio.create_task(audio_q.get())
@@ -265,6 +266,8 @@ class TencentAsrProvider:
         finally:
             rt.cancel()
             ht.cancel()
+            if get_audio is not None:
+                get_audio.cancel()
             with contextlib.suppress(Exception):
                 await ws.close()
 
