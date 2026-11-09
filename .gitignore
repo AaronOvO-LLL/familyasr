@@ -1,0 +1,24 @@
+# 凭据：绝不入库
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 测试产物：音频/PCM 不入库（隐私：不保存真实音频）
+*.wav
+*.pcm
+*.mp3
+
+# 本地日志与临时产物
+*.log
+tmp/
+
+# 用量元数据（本地持久化，不入库）
+var/
+
+# 局域网 TLS 证书与私钥（mkcert 产物，不入库）
+*.pem
+*.key

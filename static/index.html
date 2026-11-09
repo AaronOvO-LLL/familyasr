@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>家语字幕屏</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <!-- 顶部：状态 + 麦克风指示 + 用量 -->
+  <header class="status-bar">
+    <div class="mic-block" id="mic-block" hidden>
+      <span class="mic-icon" aria-hidden="true">🎤</span>
+      <span class="mic-text">采音中</span>
+    </div>
+    <div class="state-block">
+      <span id="state-icon" aria-hidden="true">○</span>
+      <span id="state-text">未开始</span>
+    </div>
+    <div class="usage-block" id="usage-text"></div>
+  </header>
+
+  <!-- 提示横幅（错误 / 中断 / 清除提示） -->
+  <div class="banner" id="banner" hidden></div>
+
+  <!-- 字幕区 -->
+  <main class="subtitle-area" id="subtitle-area">
+    <div id="subtitle-list"></div>
+    <button class="new-hint" id="btn-new" hidden>有新字幕｜回到最新</button>
+  </main>
+
+  <!-- 底部控制栏 -->
+  <footer class="control-bar">
+    <button class="primary" id="btn-toggle">开始字幕</button>
+    <div class="font-control">
+      <label for="font-size">字号</label>
+      <select id="font-size">
+        <option value="36">36</option>
+        <option value="48" selected>48</option>
+        <option value="60">60</option>
+        <option value="72">72</option>
+      </select>
+    </div>
+    <button id="btn-fullscreen">全屏</button>
+    <button id="btn-prev">上一句</button>
+    <button id="btn-latest">回到最新</button>
+  </footer>
+
+  <script src="/static/merge.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+/* 家语字幕屏：深色高对比、大字号、横屏优先（需求 FR-03） */
+:root {
+  --font-size: 48px;
+  --bg: #101014;
+  --fg: #f5f5f7;
+  --accent: #2e7d32;
+  --danger: #e57373;
+  --dim: #b0b0b6;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, "Microsoft YaHei", sans-serif;
+  overflow: hidden;
+}
+
+body { display: flex; flex-direction: column; }
+
+/* ---------- 顶部状态栏 ---------- */
+.status-bar {
+  display: flex; align-items: center; gap: 1.2rem;
+  padding: .6rem 1.2rem;
+  font-size: 1.4rem;
+  border-bottom: 1px solid #2a2a30;
+  flex: 0 0 auto;
+}
+.mic-block { display: flex; align-items: center; gap: .4rem; color: var(--fg); }
+.mic-icon { font-size: 1.6rem; }
+.state-block { display: flex; align-items: center; gap: .5rem; font-weight: 600; }
+#state-icon { color: var(--dim); }
+.listening #state-icon { color: #81c784; }
+.error-state #state-icon { color: var(--danger); }
+.usage-block { margin-left: auto; color: var(--dim); font-size: 1.1rem; }
+
+/* ---------- 提示横幅 ---------- */
+.banner {
+  padding: .8rem 1.2rem;
+  font-size: 1.35rem;
+  background: #3e2723;
+  color: #ffccbc;
+  flex: 0 0 auto;
+}
+.banner.info { background: #1b3a1e; color: #c8e6c9; }
+
+/* ---------- 字幕区 ---------- */
+.subtitle-area {
+  position: relative;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 1.2rem 1.5rem 2rem;
+  -webkit-overflow-scrolling: touch;
+}
+.subtitle-line {
+  font-size: var(--font-size);
+  line-height: 1.5;
+  margin-bottom: .6em;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.subtitle-line.interim { color: var(--fg); }
+.subtitle-line.interim::after {
+  content: " 识别中…";
+  font-size: .45em;
+  color: var(--dim);
+  vertical-align: middle;
+}
+.subtitle-line.final { color: var(--fg); }
+.subtitle-line .speaker {
+  font-size: .5em;
+  color: var(--dim);
+  margin-right: .4em;
+}
+
+.new-hint {
+  position: sticky; bottom: 0;
+  display: block; margin: 0 auto;
+  padding: .8rem 1.6rem;
+  font-size: 1.3rem;
+  background: var(--accent); color: #fff;
+  border: 0; border-radius: 999px;
+}
+
+/* ---------- 底部控制栏 ---------- */
+.control-bar {
+  display: flex; align-items: center; gap: 1rem;
+  padding: .8rem 1.2rem;
+  border-top: 1px solid #2a2a30;
+  flex: 0 0 auto;
+}
+.control-bar button, .control-bar select {
+  font-size: 1.35rem;
+  padding: .8rem 1.4rem;
+  border-radius: 12px;
+  border: 1px solid #3a3a42;
+  background: #1c1c22; color: var(--fg);
+}
+.control-bar button.primary {
+  background: var(--accent); border-color: var(--accent);
+  font-size: 1.6rem; font-weight: 700;
+  padding: 1rem 2.2rem;
+}
+.control-bar button.primary.stop { background: #b71c1c; border-color: #b71c1c; }
+.font-control { display: flex; align-items: center; gap: .5rem; color: var(--dim); }
+
+/* 小屏（竖屏）不横向溢出 */
+@media (max-width: 640px) {
+  .status-bar { flex-wrap: wrap; gap: .6rem; font-size: 1.1rem; }
+  .control-bar { flex-wrap: wrap; }
+  .control-bar button { flex: 1 1 auto; }
+}
