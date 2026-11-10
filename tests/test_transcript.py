@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-"""TranscriptTracker 归并语义测试（FR-02：修订覆盖、定稿冻结、容错）。"""
-from app.transcript import TranscriptTracker, extract_sentence_items
+"""TranscriptTracker 归并语义测试（FR-02：修订覆盖、定稿冻结、容错；V0.2：说话人标签）。"""
+from app.transcript import (SPEAKER_UNKNOWN, TranscriptTracker,
+                            extract_sentence_items, normalize_speaker_id)
 
 
 def _item(sid, text, final=False, **kw):
@@ -87,3 +88,46 @@ def test_extract_real_tencent_v2_shape():
     # 握手/整流结束消息无 result → 空
     assert extract_sentence_items({"code": 0, "voice_id": "v"}) == []
     assert extract_sentence_items({"code": 0, "final": 1}) == []
+
+
+# ---------------------------------------------------------------------------
+# V0.2 说话人标签
+# ---------------------------------------------------------------------------
+def test_normalize_speaker_id():
+    assert normalize_speaker_id(0) == 0                    # 0 是有效值，不得误判为空
+    assert normalize_speaker_id(9) == 9
+    assert normalize_speaker_id(-1) == SPEAKER_UNKNOWN
+    assert normalize_speaker_id(10) == SPEAKER_UNKNOWN     # 超范围
+    assert normalize_speaker_id(None) == SPEAKER_UNKNOWN   # 缺失
+    assert normalize_speaker_id("2") == SPEAKER_UNKNOWN    # 非法类型
+    assert normalize_speaker_id(2.0) == SPEAKER_UNKNOWN
+    assert normalize_speaker_id(True) == SPEAKER_UNKNOWN   # bool 不是 ID
+
+
+def test_speaker_zero_preserved_in_real_shape():
+    """实测形状中 speaker_info.speaker_id=0 不得丢。"""
+    msg = {"result": {"slice_type": 2, "index": 0, "voice_text_str": "好。",
+                      "speaker_info": {"speaker_id": 0}}}
+    assert extract_sentence_items(msg)[0]["speaker_id"] == 0
+
+
+def test_speaker_illegal_normalized():
+    msg = {"result": {"slice_type": 2, "index": 0, "voice_text_str": "x",
+                      "speaker_info": {"speaker_id": 12}}}
+    assert extract_sentence_items(msg)[0]["speaker_id"] == SPEAKER_UNKNOWN
+    msg = {"sentences": [{"sentence": "x", "sentence_id": 0, "sentence_type": 1,
+                          "speaker_id": "3"}]}
+    assert extract_sentence_items(msg)[0]["speaker_id"] == SPEAKER_UNKNOWN
+
+
+def test_speaker_refinement_and_no_revocation():
+    """标签修订规则：-1 → 有效 ID 补全；-1 不撤回已知有效 ID；定稿冻结。"""
+    t = TranscriptTracker()
+    assert t.update(_item(0, "今天")) == "interim"                 # 无标签 → 未知
+    assert t.update(_item(0, "今天天气", speaker_id=0)) == "interim"  # -1 → 0 补全
+    assert t.snapshot()[0]["speaker_id"] == 0
+    assert t.update(_item(0, "今天天气好", speaker_id=-1)) == "interim"
+    assert t.snapshot()[0]["speaker_id"] == 0                     # -1 不撤回
+    t.update(_item(0, "今天天气好。", final=True, speaker_id=0))
+    assert t.update(_item(0, "改标签", speaker_id=5)) == "duplicate"
+    assert t.snapshot()[0]["speaker_id"] == 0                     # 定稿冻结

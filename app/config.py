@@ -37,6 +37,9 @@ class Settings:
     secret_id: str = ""
     secret_key: str = ""
     engine_model_type: str = "16k_zh_en_2.0"
+    # 说话人标签显示（V0.2）：off=仅隐藏标签（模型不变）；切回无标签模型用
+    # ASR_ENGINE_MODEL_TYPE=16k_zh_en_2.0（两者效果不同，见 V0.2-说话人能力核验）
+    speaker_labels: bool = True
     # 家庭访问码
     access_token: str = ""
     # 监听
@@ -72,6 +75,8 @@ class Settings:
             secret_key=os.environ.get("ASR_SECRET_KEY", "").strip(),
             engine_model_type=os.environ.get(
                 "ASR_ENGINE_MODEL_TYPE", "16k_zh_en_2.0").strip() or "16k_zh_en_2.0",
+            speaker_labels=os.environ.get("SPEAKER_LABELS", "on").strip().lower()
+            not in ("0", "off", "false", "no"),
             access_token=os.environ.get("ACCESS_TOKEN", "").strip(),
             host=os.environ.get("HOST", "127.0.0.1").strip() or "127.0.0.1",
             port=int(os.environ.get("PORT", "7020") or 7020),

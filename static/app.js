@@ -26,6 +26,8 @@
   var listEl = $("subtitle-list");
   var btnNew = $("btn-new");
   var fontSelect = $("font-size");
+  var btnStartHero = $("btn-start-hero");
+  var themeSelect = $("theme-select");
 
   // ---------- 状态 ----------
   var STATE_LABEL = {
@@ -41,6 +43,9 @@
   var state = "idle";
   var backendState = "idle";     // 后端 status 里的状态（决定是否发送音频）
   var store = new SubtitleStore();
+  var namer = new SpeakerNamer();   // 匿名说话人编号（按 session_id 隔离，仅内存）
+  var labelsEnabled = false;        // 服务端初始 status 下发（SPEAKER_LABELS 开关）
+  var wasRecovering = false;        // 重连恢复后提示“说话人编号重新计算”
   var ws = null;
   var mediaStream = null;
   var audioCtx = null;
@@ -69,6 +74,12 @@
       btnToggle.classList.remove("stop");
     }
     btnToggle.disabled = (s === "stopping" || s === "requesting" || s === "connecting");
+    // 巨大开始按钮：未在聆听的主状态显示（适老化），错误后文案为“重新开始”
+    var heroVisible = (s === "idle" || s === "stopped" || s === "error");
+    btnStartHero.hidden = !heroVisible;
+    btnStartHero.textContent = (s === "error") ? "重新开始" : "开始字幕";
+    // 巨大按钮与底部按钮不重复：有巨大按钮时隐藏底部启停按钮（避免两处“开始字幕”）
+    btnToggle.hidden = heroVisible;
   }
 
   function showBanner(text, kind) {
@@ -117,7 +128,16 @@
       listEl.appendChild(el);
     }
     el.className = "subtitle-line " + (rec.is_final ? "final" : "interim");
-    el.textContent = rec.text;
+    el.textContent = "";
+    if (labelsEnabled) {
+      // 文字标签（不只靠颜色区分）：已知“说话人 N”，未知“说话人待确认”（不沿用上一位）
+      var num = namer.labelFor(rec.session_id, rec.speaker_id);
+      var sp = document.createElement("span");
+      sp.className = "speaker" + (num === null ? " unknown" : "");
+      sp.textContent = num === null ? "说话人待确认" : ("说话人 " + num);
+      el.appendChild(sp);
+    }
+    el.appendChild(document.createTextNode(rec.text));
   }
   function removeEntry(key) {
     var el = elByKey[key];
@@ -165,12 +185,20 @@
     switch (msg.type) {
       case "status":
         backendState = msg.state || backendState;
+        if (typeof msg.speaker_labels === "boolean") labelsEnabled = msg.speaker_labels;
         if (msg.state === "connecting") setState("connecting");
         else if (msg.state === "listening") {
           setState("listening");
           requestWakeLock();
-          if (msg.detail) showBanner("", null);
+          if (wasRecovering) {
+            // 自动重连恢复：编号按新连接重新计算，提示不与旧编号混淆
+            wasRecovering = false;
+            showBanner("连接已恢复，说话人编号重新计算", "info");
+          } else if (msg.detail) {
+            showBanner("", null);
+          }
         } else if (msg.state === "recovering") {
+          wasRecovering = true;
           setState("recovering");
           showBanner("连接中断，部分内容可能遗漏，正在自动恢复…");
         } else if (msg.state === "stopping") setState("stopping");
@@ -329,14 +357,16 @@
     }
   }
 
-  btnToggle.addEventListener("click", function () {
+  function toggleSession() {
     if (state === "listening" || state === "recovering"
         || state === "connecting" || state === "requesting") {
       stopSession();
     } else {
       startSession();
     }
-  });
+  }
+  btnToggle.addEventListener("click", toggleSession);
+  btnStartHero.addEventListener("click", toggleSession);
 
   // 页面退出尽力释放资源（后端另有心跳/空闲清理兜底）
   window.addEventListener("pagehide", function () {
@@ -355,6 +385,20 @@
   fontSelect.addEventListener("change", function () {
     document.documentElement.style.setProperty("--font-size", fontSelect.value + "px");
     localStorage.setItem("font-size", fontSelect.value);   // 非敏感设置
+  });
+  // 底色切换（深色默认；浅色高对比供家人自选，偏好存本地）
+  var savedTheme = localStorage.getItem("theme");
+  if (savedTheme === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+    themeSelect.value = "light";
+  }
+  themeSelect.addEventListener("change", function () {
+    if (themeSelect.value === "light") {
+      document.documentElement.setAttribute("data-theme", "light");
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+    }
+    localStorage.setItem("theme", themeSelect.value);      // 非敏感设置
   });
   $("btn-fullscreen").addEventListener("click", function () {
     if (document.fullscreenElement) {

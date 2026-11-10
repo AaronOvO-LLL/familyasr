@@ -308,3 +308,30 @@ def test_usage_request(tmp_path):
         m = recv_until(ws, lambda m: m["type"] == "usage")
         assert m["daily_seconds"] == 0
         assert m["session_seconds"] == 0
+
+
+# ---------------------------------------------------------------------------
+# V0.2 说话人标签（契约字段透传与显示开关）
+# ---------------------------------------------------------------------------
+def test_speaker_labels_flag_and_transcript_field(tmp_path):
+    """初始 status 下发 speaker_labels；transcript 携带规范化的 speaker_id。"""
+    client = TestClient(create_app(make_settings(tmp_path)))
+    with client.websocket_connect(f"/ws/live?token={TOKEN}") as ws:
+        m = recv_json(ws)
+        assert m["speaker_labels"] is True
+        ws.send_json({"type": "start", "client_session_id": "c1"})
+        recv_until(ws, lambda m: m["type"] == "status" and m["state"] == "listening")
+        for _ in range(25):
+            ws.send_bytes(pcm_packet())
+        t = recv_until(ws, lambda m: m["type"] == "transcript" and m.get("is_final"))
+        assert t["speaker_id"] in (0, 1, 2, -1)   # 有效 0–9 或未知 -1
+        ws.send_json({"type": "stop"})
+        recv_until(ws, lambda m: m["type"] == "status" and m["state"] == "stopped")
+
+
+def test_speaker_labels_disabled_flag(tmp_path):
+    """SPEAKER_LABELS=off：仅隐藏标签（flag=False），不影响链路。"""
+    client = TestClient(create_app(make_settings(tmp_path, speaker_labels=False)))
+    with client.websocket_connect(f"/ws/live?token={TOKEN}") as ws:
+        m = recv_json(ws)
+        assert m["speaker_labels"] is False

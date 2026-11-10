@@ -11,6 +11,7 @@ import asyncio
 import uuid
 
 from ..config import Settings
+from ..transcript import normalize_speaker_id
 from .base import AsrEvent, EmitFn
 
 # 脚本条目：(累计音频秒数, 动作)
@@ -44,6 +45,29 @@ EDGE_SCRIPT = [
 ]
 
 SCENARIOS = {"basic": BASIC_SCRIPT, "edge": EDGE_SCRIPT}
+
+# 说话人标签脚本（V0.2）：有效 0/1/2、缺失、非法值、标签补全与不撤回规则
+SPEAKER_SCRIPT = [
+    (0.5, ("transcript", {"text": "今天", "sentence_id": 0, "sentence_type": 0})),                       # 缺失 speaker → 未知
+    (1.0, ("transcript", {"text": "今天天气", "sentence_id": 0, "sentence_type": 0,
+                          "speaker_id": 0})),                                                            # 0 是有效 ID，-1 → 0 补全
+    (1.5, ("transcript", {"text": "今天天气不错。", "sentence_id": 0, "sentence_type": 1,
+                          "speaker_id": 0})),
+    (2.2, ("transcript", {"text": "我们下午", "sentence_id": 1, "sentence_type": 0,
+                          "speaker_id": 10})),                                                           # 超范围 → 未知
+    (2.8, ("transcript", {"text": "我们下午去买菜。", "sentence_id": 1, "sentence_type": 1,
+                          "speaker_id": 1})),                                                            # 未知 → 1 补全
+    (3.4, ("transcript", {"text": "要记得带伞。", "sentence_id": 2, "sentence_type": 1,
+                          "speaker_id": 2})),
+    (4.0, ("transcript", {"text": "好的", "sentence_id": 3, "sentence_type": 0,
+                          "speaker_id": 2})),
+    (4.4, ("transcript", {"text": "好的呀", "sentence_id": 3, "sentence_type": 0,
+                          "speaker_id": "2"})),                                                          # 非法类型 → 未知，不撤回 2
+    (5.0, ("transcript", {"text": "好的呀，晚上见。", "sentence_id": 3, "sentence_type": 1,
+                          "speaker_id": -1})),                                                           # -1 不撤回，定稿仍为 2
+]
+
+SCENARIOS["speakers"] = SPEAKER_SCRIPT
 
 
 class MockAsrProvider:
@@ -81,7 +105,8 @@ class MockAsrProvider:
                                             "sentence_id": payload.get("sentence_id", -1),
                                             "text": payload.get("text", ""),
                                             "is_final": payload.get("sentence_type", 0) == 1,
-                                            "speaker_id": payload.get("speaker_id", -1),
+                                            "speaker_id": normalize_speaker_id(
+                                                payload.get("speaker_id")),
                                             "start_time_ms": int(audio_seconds * 1000),
                                             "end_time_ms": end_ms,
                                         }))

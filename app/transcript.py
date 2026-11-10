@@ -1,13 +1,30 @@
 # -*- coding: utf-8 -*-
 """识别结果解析与归并（纯函数，来自 M0 验证工具并入应用）。
 
-语义（需求 FR-02 / FR-05）：
+语义（需求 FR-02 / FR-05，V0.2 任务书 §4.B）：
   * sentence_type=1 表示句子定稿；final=1 表示整流结束，两者不混用；
-  * 同一 sentence_id 的修订覆盖原项，定稿后不再改动；
+  * 同一 sentence_id 的修订覆盖原项，定稿后不再改动（文字与标签一起冻结）；
   * 空文本、重复、乱序、非法 ID 容错，不产生重复定稿；
-  * 每个上游连接（session_id）独立归并，不串会话。
+  * 每个上游连接（session_id）独立归并，不串会话；
+  * 说话人 speaker_id：有效取值 0–9（0 是有效值），缺失/非法规范为 -1（未知）；
+    未定稿句允许 -1 → 有效 ID 的标签补全，-1 不撤回已知有效 ID。
 """
 from __future__ import annotations
+
+SPEAKER_UNKNOWN = -1
+
+
+def normalize_speaker_id(value) -> int:
+    """规范说话人 ID：有效取值 0–9（0 是有效值），其余一律规范为 -1（未知）。
+
+    官方文档（product/1093/131127，2026-11-10 查阅）：speaker_id 起始 -1 表示
+    未产生准确说话人信息，产生后替换为正数；有效取值范围 0–9，最多分离 10 人。
+    """
+    if isinstance(value, bool):
+        return SPEAKER_UNKNOWN
+    if isinstance(value, int) and 0 <= value <= 9:
+        return value
+    return SPEAKER_UNKNOWN
 
 
 def extract_sentence_items(message: dict) -> list[dict]:
@@ -29,11 +46,10 @@ def extract_sentence_items(message: dict) -> list[dict]:
     # —— 实测形状：result 对象 ——
     res = message.get("result")
     if isinstance(res, dict) and ("voice_text_str" in res or "slice_type" in res):
-        speaker = -1
+        speaker = SPEAKER_UNKNOWN
         si = res.get("speaker_info")
         if isinstance(si, dict):
-            cand = si.get("speaker_id", si.get("id", -1))
-            speaker = cand if isinstance(cand, int) else -1
+            speaker = normalize_speaker_id(si.get("speaker_id", si.get("id")))
         out.append(_item(
             sid=res.get("index", -1),
             text=res.get("voice_text_str", "") or "",
@@ -59,7 +75,7 @@ def extract_sentence_items(message: dict) -> list[dict]:
             text=(s.get("sentence") if s.get("sentence") is not None
                   else s.get("text", "")) or "",
             final=s.get("sentence_type", 0) == 1,
-            speaker=s.get("speaker_id", -1),
+            speaker=normalize_speaker_id(s.get("speaker_id")),
             start=s.get("start_time"),
             end=s.get("end_time")))
     return out
@@ -84,19 +100,25 @@ class TranscriptTracker:
             return "ignored"
         if not text:
             return "ignored"
+        speaker = normalize_speaker_id(item.get("speaker_id"))
         cur = self._items.get(sid)
         is_final = item.get("sentence_type") == 1
         if cur is None:
-            self._items[sid] = {**item, "text": text, "is_final": is_final}
+            self._items[sid] = {**item, "text": text, "is_final": is_final,
+                                "speaker_id": speaker}
             self._order.append(sid)
             return "final" if is_final else "interim"
         if cur["is_final"]:
-            # 已定稿：迟到的重复/修订消息一律不再改动
+            # 已定稿：迟到的重复/修订消息一律不再改动（文字与标签一起冻结）
             return "duplicate"
         if is_final or len(text) >= len(cur["text"]):
+            # 标签修订规则（V0.2）：-1 → 有效 ID 补全允许；-1 不撤回已知有效 ID
+            if speaker == SPEAKER_UNKNOWN:
+                speaker = cur.get("speaker_id", SPEAKER_UNKNOWN)
             cur.update(item)
             cur["text"] = text
             cur["is_final"] = is_final
+            cur["speaker_id"] = speaker
             return "final" if is_final else "interim"
         return "ignored"   # 更短的乱序旧文本，丢弃
 

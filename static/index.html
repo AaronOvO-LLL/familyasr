@@ -23,6 +23,9 @@
   <!-- 提示横幅（错误 / 中断 / 清除提示） -->
   <div class="banner" id="banner" hidden></div>
 
+  <!-- 巨大开始按钮（适老化：未在聆听时的主操作） -->
+  <button class="start-hero" id="btn-start-hero">开始字幕</button>
+
   <!-- 字幕区 -->
   <main class="subtitle-area" id="subtitle-area">
     <div id="subtitle-list"></div>
@@ -39,6 +42,13 @@
         <option value="48" selected>48</option>
         <option value="60">60</option>
         <option value="72">72</option>
+      </select>
+    </div>
+    <div class="font-control">
+      <label for="theme-select">底色</label>
+      <select id="theme-select">
+        <option value="dark" selected>深色</option>
+        <option value="light">浅色</option>
       </select>
     </div>
     <button id="btn-fullscreen">全屏</button>

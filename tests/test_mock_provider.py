@@ -49,3 +49,18 @@ def test_edge_scenario_events():
     assert any(e.kind == "error" and e.recoverable for e in events)
     assert any(e.kind == "transcript" and e.transcript["speaker_id"] == 3
                for e in events)
+
+
+def test_speaker_scenario_normalized():
+    """speakers 脚本：0 保留、超范围/非法类型 → -1、缺失 → -1（规范化在发送前完成）。"""
+    from app.asr.mock import SPEAKER_SCRIPT
+
+    events = run(SPEAKER_SCRIPT, [b"\x00" * 6400] * 30 + [None])
+    ts = [e.transcript for e in events if e.kind == "transcript"]
+    by_text = {t["text"]: t["speaker_id"] for t in ts}
+    assert by_text["今天天气"] == 0            # 0 是有效 ID
+    assert by_text["我们下午"] == -1           # 10 → 未知
+    assert by_text["我们下午去买菜。"] == 1     # 有效 ID
+    assert by_text["好的"] == 2
+    assert by_text["好的呀"] == -1            # "2" 非法类型 → 未知
+    assert by_text["好的呀，晚上见。"] == -1   # -1 原样

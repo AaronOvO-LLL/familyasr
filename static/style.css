@@ -10,6 +10,9 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* hidden 属性必须生效（display:flex/block 会覆盖浏览器默认隐藏，导致"采音中"等常显） */
+[hidden] { display: none !important; }
+
 html, body {
   height: 100%;
   background: var(--bg);
@@ -50,6 +53,7 @@ body { display: flex; flex-direction: column; }
 .subtitle-area {
   position: relative;
   flex: 1 1 auto;
+  min-height: 0;               /* 小屏防裁切：允许收缩，保证控件完整可见 */
   overflow-y: auto;
   padding: 1.2rem 1.5rem 2rem;
   -webkit-overflow-scrolling: touch;
@@ -70,9 +74,20 @@ body { display: flex; flex-direction: column; }
 }
 .subtitle-line.final { color: var(--fg); }
 .subtitle-line .speaker {
+  display: inline-block;
   font-size: .5em;
+  font-weight: 600;
+  color: var(--fg);
+  background: #2a2a30;
+  border-radius: .55em;
+  padding: .12em .7em;
+  margin-right: .5em;
+  vertical-align: middle;
+}
+.subtitle-line .speaker.unknown {
   color: var(--dim);
-  margin-right: .4em;
+  background: transparent;
+  border: 1px dashed #4a4a52;
 }
 
 .new-hint {
@@ -83,6 +98,22 @@ body { display: flex; flex-direction: column; }
   background: var(--accent); color: #fff;
   border: 0; border-radius: 999px;
 }
+
+/* ---------- 巨大开始按钮（适老化 FR-03：未聆听时的主操作） ---------- */
+.start-hero {
+  display: block;
+  width: calc(100% - 2.4rem);
+  margin: 1rem auto;
+  min-height: clamp(88px, 16vh, 150px);
+  font-size: clamp(2rem, 6.5vw, 3.4rem);
+  font-weight: 800;
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 20px;
+  cursor: pointer;
+}
+.start-hero[hidden] { display: none; }
 
 /* ---------- 底部控制栏 ---------- */
 .control-bar {
@@ -111,4 +142,47 @@ body { display: flex; flex-direction: column; }
   .status-bar { flex-wrap: wrap; gap: .6rem; font-size: 1.1rem; }
   .control-bar { flex-wrap: wrap; }
   .control-bar button { flex: 1 1 auto; }
+}
+
+/* 小屏/低分辨率手机（老年机竖屏）：紧凑排布，保证界面完整显示 */
+@media (max-width: 480px), (max-height: 520px) {
+  .status-bar { padding: .35rem .6rem; font-size: .95rem; gap: .5rem; }
+  .usage-block { font-size: .85rem; }
+  .banner { padding: .45rem .7rem; font-size: .95rem; }
+  .subtitle-area { padding: .7rem .8rem 1.2rem; }
+  .control-bar { padding: .45rem .5rem; gap: .45rem; }
+  .control-bar button, .control-bar select {
+    font-size: 1rem;
+    padding: .55rem .7rem;
+    border-radius: 10px;
+  }
+  .control-bar button.primary { font-size: 1.25rem; padding: .7rem 1.2rem; }
+  .font-control { gap: .35rem; }
+  .start-hero {
+    min-height: 76px;
+    font-size: 1.75rem;
+    margin: .6rem auto;
+    width: calc(100% - 1.6rem);
+    border-radius: 16px;
+  }
+}
+
+/* ---------- 浅色高对比主题（可切换；深色为默认） ----------
+   证据提示见 docs/reports/V0.2 报告补记：老年人多偏好浅底黑字，个体差异大。 */
+:root[data-theme="light"] {
+  --bg: #f7f7f4;
+  --fg: #121212;
+  --dim: #45454c;
+  --accent: #1b5e20;
+  --danger: #b71c1c;
+}
+:root[data-theme="light"] .status-bar,
+:root[data-theme="light"] .control-bar { border-color: #cfcfd4; }
+:root[data-theme="light"] .banner { background: #fdecea; color: #7f1d1d; }
+:root[data-theme="light"] .banner.info { background: #e8f5e9; color: #1b5e20; }
+:root[data-theme="light"] .control-bar button,
+:root[data-theme="light"] .control-bar select { background: #ffffff; border-color: #b5b5bb; }
+:root[data-theme="light"] .subtitle-line .speaker { background: #e4e4de; color: #222; }
+:root[data-theme="light"] .subtitle-line .speaker.unknown {
+  background: transparent; border-color: #9a9aa2;
 }

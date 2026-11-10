@@ -187,7 +187,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         try:
             await send({"type": "status", "state": "idle", "session_id": None,
-                        "detail": "连接就绪"})
+                        "detail": "连接就绪",
+                        "speaker_labels": settings.speaker_labels})
             while True:
                 try:
                     msg = await asyncio.wait_for(inbound.get(), timeout=1.0)

@@ -1,9 +1,14 @@
 /* 字幕归并与回看缓存（浏览器 / Node 共用，纯逻辑、无 DOM）。
  *
- * 语义（需求 FR-02）：
+ * 语义（需求 FR-02；V0.2 任务书 §4.B）：
  *   - 以 session_id + sentence_id 为键；同句修订覆盖原项，定稿后冻结；
  *   - 空文本、重复、乱序短文本容错，不产生重复定稿；
  *   - 不串会话：不同 session_id 的同号句子互不影响；
+ *   - 说话人 speaker_id：有效取值 0–9（0 是有效值），缺失/非法规范为 -1（未知）；
+ *     未定稿句允许 -1 → 有效 ID 标签补全，-1 不撤回已知有效 ID；
+ *   - 匿名编号 SpeakerNamer 按 session_id（=上游连接）隔离、仅内存保存：
+ *     同一有效上游 ID 显示同一“说话人 N”；重连后新连接重新编号；
+ *     未知显示“说话人待确认”，不沿用上一位标签。
  *   - 回看缓存：最近 5 分钟、最多 300 条，先达到的上限生效，淘汰即不可回看。
  */
 (function (global) {
@@ -11,6 +16,27 @@
 
   var DEFAULT_MAX_SENTENCES = 300;
   var DEFAULT_MAX_AGE_MS = 5 * 60 * 1000;
+
+  /** 规范说话人 ID：有效 0–9（0 有效），其余一律 -1（未知）。 */
+  function normalizeSpeakerId(v) {
+    if (typeof v === "number" && isFinite(v) && Math.floor(v) === v && v >= 0 && v <= 9) {
+      return v;
+    }
+    return -1;
+  }
+
+  /** 匿名说话人编号器：按上游连接（session_id）隔离，仅内存保存。 */
+  function SpeakerNamer() {
+    this._maps = {};   // session_id -> { 上游 ID -> 匿名编号 }
+  }
+  /** 返回匿名编号（1 起）；未知/非法返回 null（调用方显示“说话人待确认”）。 */
+  SpeakerNamer.prototype.labelFor = function (sessionId, speakerId) {
+    var id = normalizeSpeakerId(speakerId);
+    if (id < 0) return null;
+    var map = this._maps[sessionId] || (this._maps[sessionId] = {});
+    if (!(id in map)) map[id] = Object.keys(map).length + 1;
+    return map[id];
+  };
 
   function SubtitleStore(opts) {
     opts = opts || {};
@@ -39,12 +65,16 @@
       return { changed: false, reason: "out-of-order" };
     }
     var now = this._clock();
+    var speaker = normalizeSpeakerId(t.speaker_id);
+    if (cur && speaker < 0) {
+      speaker = normalizeSpeakerId(cur.speaker_id);   // -1 不撤回已知有效 ID
+    }
     var rec = {
       session_id: t.session_id,
       sentence_id: t.sentence_id,
       text: text,
       is_final: !!t.is_final,
-      speaker_id: (t.speaker_id === undefined ? -1 : t.speaker_id),
+      speaker_id: speaker,
       start_time_ms: t.start_time_ms,
       end_time_ms: t.end_time_ms,
       createdAt: cur ? cur.createdAt : now,
@@ -83,9 +113,11 @@
     this.trimmed = false;
   };
 
-  var api = { SubtitleStore: SubtitleStore };
+  var api = { SubtitleStore: SubtitleStore, SpeakerNamer: SpeakerNamer,
+              normalizeSpeakerId: normalizeSpeakerId };
   if (typeof module !== "undefined" && module.exports) {
     module.exports = api;
   }
   global.SubtitleStore = SubtitleStore;
+  global.SpeakerNamer = SpeakerNamer;
 })(typeof window !== "undefined" ? window : globalThis);
