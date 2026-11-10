@@ -191,7 +191,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             while True:
                 try:
                     msg = await asyncio.wait_for(inbound.get(), timeout=1.0)
-                except TimeoutError:
+                except (TimeoutError, asyncio.TimeoutError):
                     now = asyncio.get_running_loop().time()
                     if now - last_client > settings.client_idle_timeout_seconds:
                         await send({"type": "error", "code": "idle_timeout",

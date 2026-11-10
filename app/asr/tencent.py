@@ -259,7 +259,7 @@ class TencentAsrProvider:
                 raise _TransientUpstreamError(f"发送 end 失败：{e}") from e
             try:
                 await asyncio.wait_for(ht, timeout=self.tail_timeout)
-            except TimeoutError:
+            except (TimeoutError, asyncio.TimeoutError):
                 pass   # 超时保留已有文字，未定稿部分不伪称定稿
             except (_TransientUpstreamError, ProviderStreamError):
                 pass   # 尾句阶段出错不重试：保留已显示文字，正常收尾

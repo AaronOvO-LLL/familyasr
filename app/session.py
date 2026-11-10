@@ -158,7 +158,7 @@ class LiveSession:
         try:
             await asyncio.wait_for(asyncio.shield(self._task),
                                    timeout=self.settings.tail_timeout_seconds + 2.0)
-        except TimeoutError:
+        except (TimeoutError, asyncio.TimeoutError):
             await self.abort()
 
     async def abort(self) -> None:
